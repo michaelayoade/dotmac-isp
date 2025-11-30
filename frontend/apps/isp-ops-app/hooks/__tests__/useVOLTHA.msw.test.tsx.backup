@@ -1,0 +1,719 @@
+/**
+ * MSW-powered tests for useVOLTHA hooks
+ *
+ * Tests React Query hooks for VOLTHA PON management operations
+ */
+
+import React from "react";
+import { renderHook, waitFor, act } from "@testing-library/react";
+import {
+  useVOLTHAHealth,
+  useOLTs,
+  useOLTOverview,
+  useONUs,
+  useONU,
+  useVOLTHAAlarms,
+  usePONPortStatistics,
+  useDiscoveredONUs,
+  useVOLTHADashboard,
+  useProvisionONU,
+  useDeviceOperation,
+  useAcknowledgeAlarm,
+  useClearAlarm,
+  volthaKeys,
+} from "../useVOLTHA";
+import {
+  createTestQueryClient,
+  createQueryWrapper,
+} from "../../__tests__/test-utils";
+import { http, HttpResponse } from "msw";
+import { server } from "../../__tests__/msw/server";
+
+// Mock the operator auth utility
+jest.mock("../../../../shared/utils/operatorAuth", () => ({
+  getOperatorAccessToken: jest.fn(() => "mock-token"),
+}));
+
+// Mock logger
+jest.mock("@/lib/logger", () => ({
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+  },
+}));
+
+// Mock useAppConfig
+jest.mock("@/providers/AppConfigContext", () => ({
+  AppConfigProvider: ({ children }: { children: React.ReactNode }) => children,
+  useAppConfig: jest.fn(() => ({
+    api: {
+      baseUrl: "http://localhost:3000",
+      prefix: "/api/v1",
+    },
+    features: {},
+  })),
+}));
+
+const BASE_URL = "http://localhost:3000/api/v1";
+
+describe("useVOLTHA Hooks (MSW)", () => {
+  let queryClient: ReturnType<typeof createTestQueryClient>;
+
+  beforeEach(() => {
+    queryClient = createTestQueryClient();
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+  });
+
+  describe("Query Key Factory", () => {
+    it("generates correct query keys", () => {
+      expect(volthaKeys.all).toEqual(["voltha"]);
+      expect(volthaKeys.health()).toEqual(["voltha", "health"]);
+      expect(volthaKeys.olts()).toEqual(["voltha", "olts"]);
+      expect(volthaKeys.oltOverview("olt-1")).toEqual([
+        "voltha",
+        "olt",
+        "olt-1",
+        "overview",
+      ]);
+      expect(volthaKeys.onus()).toEqual(["voltha", "onus"]);
+      expect(volthaKeys.alarms()).toEqual(["voltha", "alarms"]);
+      expect(volthaKeys.alarms("device-1")).toEqual([
+        "voltha",
+        "alarms",
+        "device",
+        "device-1",
+      ]);
+      expect(volthaKeys.portStatistics("olt-1", 1)).toEqual([
+        "voltha",
+        "port-statistics",
+        "olt-1",
+        1,
+      ]);
+      expect(volthaKeys.discoveredONUs()).toEqual(["voltha", "discovered-onus"]);
+    });
+  });
+
+  describe("useVOLTHAHealth", () => {
+    it("fetches VOLTHA health status successfully", async () => {
+      const mockHealth = {
+        healthy: true,
+        state: "HEALTHY",
+        message: "All systems operational",
+      };
+
+      server.use(
+        http.get(`${BASE_URL}/access/health`, () => {
+          return HttpResponse.json(mockHealth);
+        }),
+      );
+
+      const { result } = renderHook(() => useVOLTHAHealth(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toEqual(mockHealth);
+      expect(result.current.data?.healthy).toBe(true);
+      expect(result.current.data?.state).toBe("HEALTHY");
+    });
+
+    it("handles health check error", async () => {
+      server.use(
+        http.get(`${BASE_URL}/access/health`, () => {
+          return HttpResponse.json(
+            { detail: "Service unavailable" },
+            { status: 503 },
+          );
+        }),
+      );
+
+      const { result } = renderHook(() => useVOLTHAHealth(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+      expect(result.current.error).toBeTruthy();
+    });
+  });
+
+  describe("useOLTs", () => {
+    it("fetches OLT devices successfully", async () => {
+      const mockOLTs = [
+        {
+          id: "olt-1",
+          root_device_id: "device-1",
+          desc: {
+            serial_num: "SN12345",
+          },
+        },
+        {
+          id: "olt-2",
+          root_device_id: "device-2",
+          desc: {
+            serial_num: "SN67890",
+          },
+        },
+      ];
+
+      server.use(
+        http.get(`${BASE_URL}/access/logical-devices`, () => {
+          return HttpResponse.json({ devices: mockOLTs });
+        }),
+      );
+
+      const { result } = renderHook(() => useOLTs(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toHaveLength(2);
+      expect(result.current.data?.[0].id).toBe("olt-1");
+      expect(result.current.data?.[1].desc?.serial_num).toBe("SN67890");
+    });
+
+    it("handles empty OLT list", async () => {
+      server.use(
+        http.get(`${BASE_URL}/access/logical-devices`, () => {
+          return HttpResponse.json({ devices: [] });
+        }),
+      );
+
+      const { result } = renderHook(() => useOLTs(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toHaveLength(0);
+    });
+  });
+
+  describe("useOLTOverview", () => {
+    it("fetches OLT overview successfully", async () => {
+      const mockOverview = {
+        model: "OLT-XG-PON-16",
+        firmware_version: "2.5.1",
+        oper_status: "ACTIVE",
+        pon_ports: [
+          {
+            port_no: 1,
+            label: "PON-1/1/1",
+            oper_status: "ACTIVE",
+            total_onus: 32,
+            online_onus: 30,
+            utilization_percent: 75.5,
+          },
+        ],
+      };
+
+      server.use(
+        http.get(`${BASE_URL}/access/devices/olt-1/overview`, () => {
+          return HttpResponse.json(mockOverview);
+        }),
+      );
+
+      const { result } = renderHook(() => useOLTOverview("olt-1"), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data?.model).toBe("OLT-XG-PON-16");
+      expect(result.current.data?.pon_ports).toHaveLength(1);
+      expect(result.current.data?.pon_ports[0].total_onus).toBe(32);
+    });
+
+    it("does not fetch when oltId is null", () => {
+      const { result } = renderHook(() => useOLTOverview(null), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.data).toBeUndefined();
+    });
+  });
+
+  describe("useONUs", () => {
+    it("fetches ONU devices successfully", async () => {
+      const mockONUs = [
+        {
+          id: "onu-1",
+          serial_number: "ALCL12345678",
+          vendor: "Nokia",
+          model: "G-010G-A",
+          firmware_version: "3.2.1",
+          oper_status: "ACTIVE",
+          connect_status: "REACHABLE",
+        },
+        {
+          id: "onu-2",
+          serial_number: "HWTC87654321",
+          vendor: "Huawei",
+          model: "HG8245H",
+          firmware_version: "V5R019C10S125",
+          oper_status: "ACTIVATING",
+          connect_status: "REACHABLE",
+        },
+      ];
+
+      server.use(
+        http.get(`${BASE_URL}/access/devices`, () => {
+          return HttpResponse.json({ devices: mockONUs });
+        }),
+      );
+
+      const { result } = renderHook(() => useONUs(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toHaveLength(2);
+      expect(result.current.data?.[0].serial_number).toBe("ALCL12345678");
+      expect(result.current.data?.[1].vendor).toBe("Huawei");
+    });
+  });
+
+  describe("useONU", () => {
+    it("fetches single ONU details successfully", async () => {
+      const mockONU = {
+        id: "onu-1",
+        serial_number: "ALCL12345678",
+        vendor: "Nokia",
+        model: "G-010G-A",
+        firmware_version: "3.2.1",
+        oper_status: "ACTIVE",
+        connect_status: "REACHABLE",
+        metadata: {
+          olt_id: "olt-1",
+          pon_port: 1,
+        },
+      };
+
+      server.use(
+        http.get(`${BASE_URL}/access/devices/onu-1`, () => {
+          return HttpResponse.json(mockONU);
+        }),
+      );
+
+      const { result } = renderHook(() => useONU("onu-1"), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data?.serial_number).toBe("ALCL12345678");
+      expect(result.current.data?.metadata?.olt_id).toBe("olt-1");
+    });
+  });
+
+  describe("useVOLTHAAlarms", () => {
+    it("fetches all alarms successfully", async () => {
+      const mockAlarms = [
+        {
+          id: "alarm-1",
+          type: "EQUIPMENT_ALARM",
+          severity: "CRITICAL",
+          state: "RAISED",
+          device_id: "onu-1",
+          description: "High temperature detected",
+          raised_ts: "2025-11-18T10:00:00Z",
+        },
+        {
+          id: "alarm-2",
+          type: "COMMUNICATION_ALARM",
+          severity: "MAJOR",
+          state: "RAISED",
+          device_id: "olt-1",
+          description: "PON port signal degradation",
+          raised_ts: "2025-11-18T10:30:00Z",
+        },
+      ];
+
+      server.use(
+        http.get(`${BASE_URL}/access/alarms`, () => {
+          return HttpResponse.json({ alarms: mockAlarms });
+        }),
+      );
+
+      const { result } = renderHook(() => useVOLTHAAlarms(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toHaveLength(2);
+      expect(result.current.data?.[0].severity).toBe("CRITICAL");
+      expect(result.current.data?.[1].type).toBe("COMMUNICATION_ALARM");
+    });
+
+    it("fetches device-specific alarms", async () => {
+      const mockAlarms = [
+        {
+          id: "alarm-1",
+          type: "EQUIPMENT_ALARM",
+          severity: "CRITICAL",
+          state: "RAISED",
+          device_id: "onu-1",
+          description: "High temperature detected",
+          raised_ts: "2025-11-18T10:00:00Z",
+        },
+      ];
+
+      server.use(
+        http.get(`${BASE_URL}/access/devices/onu-1/alarms`, () => {
+          return HttpResponse.json({ alarms: mockAlarms });
+        }),
+      );
+
+      const { result } = renderHook(() => useVOLTHAAlarms("onu-1"), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toHaveLength(1);
+      expect(result.current.data?.[0].device_id).toBe("onu-1");
+    });
+  });
+
+  describe("usePONPortStatistics", () => {
+    it("fetches port statistics successfully", async () => {
+      const mockStats = {
+        rx_power: -22.5,
+        tx_power: 2.3,
+        temperature: 45.2,
+        voltage: 3.3,
+        rx_bytes: 1024000000,
+        tx_bytes: 512000000,
+        rx_packets: 1500000,
+        tx_packets: 800000,
+        rx_errors: 0,
+        tx_errors: 0,
+      };
+
+      server.use(
+        http.get(`${BASE_URL}/access/devices/olt-1/ports/1/statistics`, () => {
+          return HttpResponse.json(mockStats);
+        }),
+      );
+
+      const { result } = renderHook(() => usePONPortStatistics("olt-1", 1), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data?.rx_power).toBe(-22.5);
+      expect(result.current.data?.tx_power).toBe(2.3);
+      expect(result.current.data?.rx_errors).toBe(0);
+    });
+  });
+
+  describe("useDiscoveredONUs", () => {
+    it("fetches discovered ONUs successfully", async () => {
+      const mockDiscoveredONUs = [
+        {
+          serial_number: "NEWONU123456",
+          state: "DISCOVERED",
+          metadata: {
+            olt_id: "olt-1",
+            pon_port: 1,
+          },
+        },
+        {
+          serial_number: "NEWONU789012",
+          state: "DISCOVERED",
+          metadata: {
+            olt_id: "olt-1",
+            pon_port: 2,
+          },
+        },
+      ];
+
+      server.use(
+        http.get(`${BASE_URL}/access/discover-onus`, () => {
+          // Return array directly, not wrapped in { onus: ... }
+          return HttpResponse.json(mockDiscoveredONUs);
+        }),
+      );
+
+      const { result } = renderHook(() => useDiscoveredONUs(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      // Manually trigger since enabled: false by default
+      await act(async () => {
+        result.current.refetch();
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toHaveLength(2);
+      expect(result.current.data?.[0].serial_number).toBe("NEWONU123456");
+      expect(result.current.data?.[1].metadata?.pon_port).toBe(2);
+    });
+  });
+
+  describe("useVOLTHADashboard", () => {
+    it("fetches all dashboard data successfully", async () => {
+      server.use(
+        http.get(`${BASE_URL}/access/health`, () => {
+          return HttpResponse.json({
+            healthy: true,
+            state: "HEALTHY",
+            message: "OK",
+          });
+        }),
+        http.get(`${BASE_URL}/access/logical-devices`, () => {
+          return HttpResponse.json({ devices: [{ id: "olt-1" }] });
+        }),
+        http.get(`${BASE_URL}/access/devices`, () => {
+          return HttpResponse.json({ devices: [{ id: "onu-1" }] });
+        }),
+        http.get(`${BASE_URL}/access/alarms`, () => {
+          return HttpResponse.json({ alarms: [] });
+        }),
+      );
+
+      const { result } = renderHook(() => useVOLTHADashboard(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(result.current.health).toBeDefined();
+      expect(result.current.olts).toHaveLength(1);
+      expect(result.current.onus).toHaveLength(1);
+      expect(result.current.alarms).toHaveLength(0);
+    });
+
+    it("provides refetch function", async () => {
+      server.use(
+        http.get(`${BASE_URL}/access/health`, () => {
+          return HttpResponse.json({ healthy: true, state: "HEALTHY" });
+        }),
+        http.get(`${BASE_URL}/access/logical-devices`, () => {
+          return HttpResponse.json({ devices: [] });
+        }),
+        http.get(`${BASE_URL}/access/devices`, () => {
+          return HttpResponse.json({ devices: [] });
+        }),
+        http.get(`${BASE_URL}/access/alarms`, () => {
+          return HttpResponse.json({ alarms: [] });
+        }),
+      );
+
+      const { result } = renderHook(() => useVOLTHADashboard(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(result.current.refetch).toBeDefined();
+      expect(typeof result.current.refetch).toBe("function");
+
+      await act(async () => {
+        result.current.refetch();
+      });
+    });
+  });
+
+  describe("useProvisionONU", () => {
+    it("provisions ONU successfully", async () => {
+      const mockRequest = {
+        serial_number: "NEWONU123456",
+        olt_device_id: "olt-1",
+        pon_port: 1,
+        subscriber_id: "sub-123",
+        vlan: 100,
+      };
+
+      const mockResponse = {
+        success: true,
+        message: "ONU provisioned successfully",
+        device_id: "onu-new-1",
+      };
+
+      server.use(
+        http.post(`${BASE_URL}/access/olts/olt-1/onus`, async ({ request }) => {
+          const body = await request.json();
+          expect(body).toMatchObject(mockRequest);
+          return HttpResponse.json(mockResponse);
+        }),
+      );
+
+      const { result } = renderHook(() => useProvisionONU(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await act(async () => {
+        result.current.mutate(mockRequest);
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toEqual(mockResponse);
+      expect(result.current.data?.success).toBe(true);
+    });
+
+    it("handles provisioning error", async () => {
+      const mockRequest = {
+        serial_number: "INVALID",
+        olt_device_id: "olt-1",
+        pon_port: 1,
+      };
+
+      server.use(
+        http.post(`${BASE_URL}/access/olts/olt-1/onus`, () => {
+          return HttpResponse.json(
+            { detail: "Invalid serial number format" },
+            { status: 400 },
+          );
+        }),
+      );
+
+      const { result } = renderHook(() => useProvisionONU(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await act(async () => {
+        result.current.mutate(mockRequest);
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+      expect(result.current.error).toBeTruthy();
+    });
+
+    it("calls onSuccess callback", async () => {
+      const onSuccess = jest.fn();
+      const mockRequest = {
+        serial_number: "NEWONU123456",
+        olt_device_id: "olt-1",
+        pon_port: 1,
+      };
+
+      server.use(
+        http.post(`${BASE_URL}/access/olts/olt-1/onus`, () => {
+          return HttpResponse.json({ success: true });
+        }),
+      );
+
+      const { result } = renderHook(() => useProvisionONU({ onSuccess }), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await act(async () => {
+        result.current.mutate(mockRequest);
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(onSuccess).toHaveBeenCalledWith({ success: true });
+    });
+  });
+
+  describe("useDeviceOperation", () => {
+    it("performs device enable operation", async () => {
+      server.use(
+        http.post(`${BASE_URL}/access/devices/onu-1/enable`, () => {
+          return HttpResponse.json({ success: true, message: "Device enabled" });
+        }),
+      );
+
+      const { result } = renderHook(() => useDeviceOperation(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await act(async () => {
+        result.current.mutate({
+          deviceId: "onu-1",
+          operation: "enable",
+          oltId: "olt-1",
+        });
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.success).toBe(true);
+    });
+
+    it("performs device reboot operation", async () => {
+      server.use(
+        http.post(`${BASE_URL}/access/devices/onu-1/reboot`, () => {
+          return HttpResponse.json({
+            success: true,
+            message: "Device rebooting",
+          });
+        }),
+      );
+
+      const { result } = renderHook(() => useDeviceOperation(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await act(async () => {
+        result.current.mutate({
+          deviceId: "onu-1",
+          operation: "reboot",
+          oltId: "olt-1",
+        });
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    });
+  });
+
+  describe("useAcknowledgeAlarm", () => {
+    it("acknowledges alarm successfully", async () => {
+      server.use(
+        http.post(`${BASE_URL}/access/alarms/alarm-1/acknowledge`, () => {
+          return HttpResponse.json({
+            success: true,
+            message: "Alarm acknowledged",
+          });
+        }),
+      );
+
+      const { result } = renderHook(() => useAcknowledgeAlarm(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await act(async () => {
+        result.current.mutate("alarm-1");
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      // The mutation returns the alarmId, not the API response
+      expect(result.current.data).toBe("alarm-1");
+    });
+  });
+
+  describe("useClearAlarm", () => {
+    it("clears alarm successfully", async () => {
+      server.use(
+        http.post(`${BASE_URL}/access/alarms/alarm-1/clear`, () => {
+          return HttpResponse.json({
+            success: true,
+            message: "Alarm cleared",
+          });
+        }),
+      );
+
+      const { result } = renderHook(() => useClearAlarm(), {
+        wrapper: createQueryWrapper(queryClient),
+      });
+
+      await act(async () => {
+        result.current.mutate("alarm-1");
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      // The mutation returns the alarmId, not the API response
+      expect(result.current.data).toBe("alarm-1");
+    });
+  });
+});
