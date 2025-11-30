@@ -21,6 +21,7 @@ alembic = "^1.13.0"
 
 # ISP-specific dependencies
 pyrad = "^2.4"  # RADIUS protocol
+slowapi = "^0.1.9"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
