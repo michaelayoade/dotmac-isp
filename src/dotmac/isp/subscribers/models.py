@@ -27,18 +27,18 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from dotmac.platform.db import (
+from dotmac.shared.db import (
     AuditMixin,
     Base,
     SoftDeleteMixin,
     TenantMixin,
     TimestampMixin,
 )
-from dotmac.platform.radius.models import INET  # Cross-database INET type
-from dotmac.platform.services.lifecycle.models import ServiceType
+from dotmac.isp.radius.models import INET  # Cross-database INET type
+from dotmac.isp.services.lifecycle.models import ServiceType
 
 if TYPE_CHECKING:
-    from dotmac.platform.ip_management.models import IPReservation
+    from dotmac.isp.ip_management.models import IPReservation
 
 
 class PasswordHashingMethod(str, Enum):

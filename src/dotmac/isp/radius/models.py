@@ -22,7 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import INET as PostgreSQL_INET
 from sqlalchemy.orm import relationship
 
-from dotmac.platform.db import Base
+from dotmac.shared.db import Base
 
 
 class INET(TypeDecorator[str]):

@@ -153,7 +153,7 @@ class PlatformClient:
 
         try:
             response = await client.post(
-                "/api/platform/v1/license/validate",
+                "/api/platform/v1/service-api/license/validate",
                 json={
                     "license_key": self.license_key,
                     "isp_instance_id": f"isp-{self.tenant_id}",
@@ -213,7 +213,7 @@ class PlatformClient:
 
         try:
             response = await client.post(
-                f"/api/platform/v1/config/{self.tenant_id}/sync",
+                f"/api/platform/v1/service-api/config/{self.tenant_id}/sync",
                 json={"current_version": None if force else self._config_version},
                 headers=self._get_headers(),
             )
@@ -269,7 +269,7 @@ class PlatformClient:
 
         try:
             response = await client.post(
-                "/api/platform/v1/metrics/report",
+                "/api/platform/v1/service-api/metrics/report",
                 json={"metrics": metrics.model_dump(mode="json")},
                 headers=self._get_headers(),
             )
@@ -296,7 +296,7 @@ class PlatformClient:
 
         try:
             response = await client.post(
-                "/api/platform/v1/metrics/health",
+                "/api/platform/v1/service-api/metrics/health",
                 json=report.model_dump(mode="json"),
                 headers=self._get_headers(),
             )
@@ -320,7 +320,7 @@ class PlatformClient:
 
         try:
             response = await client.post(
-                "/api/platform/v1/events/webhook",
+                "/api/platform/v1/service-api/events/webhook",
                 json=event.model_dump(mode="json"),
                 headers=self._get_headers(),
             )
@@ -340,7 +340,7 @@ class PlatformClient:
 
         try:
             response = await client.post(
-                "/api/platform/v1/events/webhook/batch",
+                "/api/platform/v1/service-api/events/webhook/batch",
                 json={"events": [e.model_dump(mode="json") for e in events]},
                 headers=self._get_headers(),
             )

@@ -1,23 +1,32 @@
 services:
   isp-backend:
     build:
-      context: .
-      dockerfile: ${ISP_BACKEND_DOCKERFILE:-Dockerfile}
-    command: ${ISP_BACKEND_COMMAND:-uvicorn dotmac.platform.main:app --host 0.0.0.0 --port 8000}
+      context: ..
+      dockerfile: dotmac-isp/Dockerfile
+    command: ${ISP_BACKEND_COMMAND:-uvicorn dotmac.isp.isp_main:app --host 0.0.0.0 --port 8000}
     restart: unless-stopped
     environment:
       ENVIRONMENT: ${ISP_ENVIRONMENT:-development}
       LOG_LEVEL: ${ISP_LOG_LEVEL:-debug}
+      # Platform connection (for license validation, config sync, metrics reporting)
+      PLATFORM_URL: ${PLATFORM_URL:-http://host.docker.internal:8001}
+      TENANT_ID: ${TENANT_ID:-}
+      ISP_LICENSE_KEY: ${ISP_LICENSE_KEY:-}
+      PLATFORM_SERVICE_TOKEN: ${PLATFORM_SERVICE_TOKEN:-}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      # Database configuration
       DATABASE__HOST: ${ISP_DATABASE__HOST:-dotmac-postgres}
       DATABASE__PORT: ${ISP_DATABASE__PORT:-5432}
-      DATABASE__DATABASE: ${ISP_DATABASE__DATABASE:-dotmac}
+      DATABASE__DATABASE: ${ISP_DATABASE__DATABASE:-dotmac_isp}
       DATABASE__USERNAME: ${ISP_DATABASE__USERNAME:-dotmac_user}
       DATABASE__PASSWORD: ${ISP_DATABASE__PASSWORD:-dev_local_pg_password_123}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://dotmac_user:dev_local_pg_password_123@dotmac-postgres:5432/dotmac}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://dotmac_user:dev_local_pg_password_123@dotmac-postgres:5432/dotmac_isp}
+      # Redis configuration
       REDIS__HOST: ${ISP_REDIS__HOST:-dotmac-redis}
       REDIS__PORT: ${ISP_REDIS__PORT:-6379}
-      REDIS__DB: ${ISP_REDIS__DB:-0}
+      REDIS__DB: ${ISP_REDIS__DB:-1}
       REDIS__PASSWORD: ${ISP_REDIS__PASSWORD:-dev_local_redis_password_123}
+      REDIS_URL: ${REDIS_URL:-redis://:dev_local_redis_password_123@dotmac-redis:6379/1}
       STORAGE__ENDPOINT: ${ISP_STORAGE__ENDPOINT:-http://dotmac-minio:9000}
       STORAGE__ACCESS_KEY: ${ISP_STORAGE__ACCESS_KEY:-minioadmin}
       STORAGE__SECRET_KEY: ${ISP_STORAGE__SECRET_KEY:-dev_local_minio_root_pw}
@@ -28,8 +37,8 @@ services:
       VAULT__TOKEN: ${ISP_VAULT__TOKEN:-dev-token-12345}
       SECRET_KEY: ${ISP_SECRET_KEY:-dev-secret-key-change-me-min-32-chars}
       AUTH__JWT_SECRET_KEY: ${JWT_SECRET:-dev-jwt-secret-key-change-me-min-32-chars}
-      CELERY__BROKER_URL: ${ISP_CELERY__BROKER_URL:-redis://dotmac-redis:6379/2}
-      CELERY__RESULT_BACKEND: ${ISP_CELERY__RESULT_BACKEND:-redis://dotmac-redis:6379/3}
+      CELERY__BROKER_URL: ${ISP_CELERY__BROKER_URL:-redis://:dev_local_redis_password_123@dotmac-redis:6379/4}
+      CELERY__RESULT_BACKEND: ${ISP_CELERY__RESULT_BACKEND:-redis://:dev_local_redis_password_123@dotmac-redis:6379/5}
       REQUIRE_REDIS_SESSIONS: ${ISP_REQUIRE_REDIS_SESSIONS:-false}
       # CORS Configuration - add your server IP/domain here
       CORS__ENABLED: ${CORS__ENABLED:-true}

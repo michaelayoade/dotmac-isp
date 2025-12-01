@@ -8,6 +8,7 @@ Usage:
     uvicorn dotmac.isp.isp_main:app --host 0.0.0.0 --port 8001
 """
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -43,8 +44,17 @@ from dotmac.isp.auth.middleware import (
     AppBoundaryMiddleware,
     SingleTenantMiddleware,
 )
+from dotmac.isp.platform_client.client import (
+    PlatformClient,
+    LicenseValidationError,
+    ConfigSyncError,
+)
 
 logger = structlog.get_logger(__name__)
+
+# Global platform client instance
+_platform_client: PlatformClient | None = None
+_periodic_sync_task: asyncio.Task[None] | None = None
 
 
 def rate_limit_handler(request: Request, exc: Exception) -> Response:
@@ -67,6 +77,120 @@ async def _init_database() -> None:
     init_db()
 
 
+async def _init_platform_client() -> PlatformClient | None:
+    """Initialize Platform client and perform startup checks.
+
+    Returns PlatformClient on success, None if Platform integration is disabled.
+    Raises on license validation failure (fail fast).
+    """
+    global _platform_client, _periodic_sync_task
+
+    # Check if Platform integration is enabled
+    platform_settings = settings.platform
+    if not platform_settings.platform_url or not platform_settings.license_key:
+        logger.warning(
+            "isp_service.platform_disabled",
+            reason="Missing PLATFORM_URL or ISP_LICENSE_KEY",
+        )
+        return None
+
+    tenant_id = settings.tenant_id
+    if not tenant_id:
+        logger.warning(
+            "isp_service.platform_disabled",
+            reason="Missing TENANT_ID",
+        )
+        return None
+
+    logger.info(
+        "isp_service.platform_init",
+        platform_url=platform_settings.platform_url,
+        tenant_id=tenant_id,
+    )
+
+    # Create Platform client
+    _platform_client = PlatformClient(
+        platform_url=platform_settings.platform_url,
+        tenant_id=tenant_id,
+        license_key=platform_settings.license_key,
+        service_secret=platform_settings.service_token,
+        app_version=settings.app_version,
+        timeout=platform_settings.timeout_seconds,
+    )
+
+    # Perform startup checks (validate license + sync config)
+    try:
+        await _platform_client.startup_check()
+        logger.info(
+            "isp_service.platform_startup_success",
+            tenant_id=tenant_id,
+            license_valid=True,
+        )
+    except LicenseValidationError as e:
+        logger.error(
+            "isp_service.license_invalid",
+            tenant_id=tenant_id,
+            error=str(e),
+        )
+        await _platform_client.close()
+        _platform_client = None
+        # Fail fast - don't start the service with invalid license
+        raise RuntimeError(f"ISP startup failed: License validation failed - {e}")
+    except ConfigSyncError as e:
+        logger.error(
+            "isp_service.config_sync_failed",
+            tenant_id=tenant_id,
+            error=str(e),
+        )
+        # Config sync failure is not fatal - we can continue with defaults
+        logger.warning("isp_service.continuing_without_config_sync")
+    except Exception as e:
+        logger.error(
+            "isp_service.platform_startup_failed",
+            tenant_id=tenant_id,
+            error=str(e),
+        )
+        await _platform_client.close()
+        _platform_client = None
+        raise RuntimeError(f"ISP startup failed: Platform connection failed - {e}")
+
+    # Start periodic sync background task
+    _periodic_sync_task = asyncio.create_task(
+        _platform_client.periodic_sync(
+            config_interval=platform_settings.config_sync_interval,
+            metrics_interval=60,
+            health_interval=30,
+        )
+    )
+    logger.info("isp_service.periodic_sync_started")
+
+    return _platform_client
+
+
+async def _shutdown_platform_client() -> None:
+    """Shutdown Platform client and cleanup."""
+    global _platform_client, _periodic_sync_task
+
+    if _periodic_sync_task is not None:
+        _periodic_sync_task.cancel()
+        try:
+            await _periodic_sync_task
+        except asyncio.CancelledError:
+            pass
+        _periodic_sync_task = None
+        logger.info("isp_service.periodic_sync_stopped")
+
+    if _platform_client is not None:
+        await _platform_client.close()
+        _platform_client = None
+        logger.info("isp_service.platform_client_closed")
+
+
+def get_platform_client() -> PlatformClient | None:
+    """Get the global Platform client instance."""
+    return _platform_client
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """ISP service lifecycle management."""
@@ -76,11 +200,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     await init_redis()
     await _init_database()
 
+    # Initialize Platform client and validate license
+    # This will fail fast if license is invalid
+    await _init_platform_client()
+
     logger.info("isp_service.started")
     yield
 
     # Cleanup
     logger.info("isp_service.stopping")
+    await _shutdown_platform_client()
     await shutdown_redis()
     logger.info("isp_service.stopped")
 

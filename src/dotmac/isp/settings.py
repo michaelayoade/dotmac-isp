@@ -274,6 +274,10 @@ class Settings(BaseSettings):
         default="dotmac-isp",
         description="Service name for observability",
     )
+    app_version: str = Field(
+        default_factory=lambda: os.getenv("APP_VERSION", "1.0.0"),
+        description="Application version",
+    )
     tenant_id: str | None = Field(
         default_factory=lambda: os.getenv("TENANT_ID"),
         description="Tenant ID for this ISP instance",
