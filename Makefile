@@ -38,7 +38,7 @@ legacy-check: ## Prove the inherited tree did not drift silently
 check: toolchain lock-check lint format-check type-check legacy-check ## Static gate
 
 test: ## Thin-assembly and architecture canaries
-	$(PYTHON) pytest $(THIN_TESTS) -q
+	$(PYTHON) pytest --confcutdir=$(THIN_TESTS) $(THIN_TESTS) -q
 
 build: ## Build the candidate wheel
 	$(POETRY) build

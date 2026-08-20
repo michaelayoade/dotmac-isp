@@ -64,6 +64,11 @@ def test_default_compose_surface_builds_only_the_thin_candidate() -> None:
     assert "MIGRATION_DATABASE_URL" not in compose
 
 
+def test_thin_suite_does_not_load_the_legacy_parent_conftest() -> None:
+    makefile = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+    assert "pytest --confcutdir=$(THIN_TESTS) $(THIN_TESTS)" in makefile
+
+
 def test_ci_actions_are_immutable_and_failures_are_not_ignored() -> None:
     workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
         encoding="utf-8"
