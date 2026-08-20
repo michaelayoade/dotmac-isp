@@ -1,0 +1,12 @@
+services:
+  isp:
+    build:
+      context: .
+      args:
+        POETRY_VERSION: "2.4.1"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL for the independent Dotmac ISP database}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    ports:
+      - "${PORT:-8000}:8000"
+    restart: unless-stopped

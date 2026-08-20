@@ -1,59 +1,31 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS builder
 
+ARG POETRY_VERSION=2.4.1
+ENV POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_NO_INTERACTION=1
+WORKDIR /build
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip install --no-cache-dir "poetry==${POETRY_VERSION}"
+
+COPY pyproject.toml poetry.lock README.md ./
+RUN poetry install --only main --no-root --sync
+
+COPY src/dotmac_isp ./src/dotmac_isp
+RUN poetry install --only main --sync
+
+FROM python:3.12-slim AS runtime
+
+ENV PATH=/app/.venv/bin:$PATH \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 WORKDIR /app
 
-ARG DEBIAN_FRONTEND=noninteractive
+RUN useradd --create-home --uid 10001 appuser
+COPY --from=builder --chown=appuser:appuser /build/.venv /app/.venv
 
-# Install system dependencies
-RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
-        gcc \
-        python3-dev \
-        libc6-dev \
-        postgresql-client \
-        freeradius-utils \
-        gosu; \
-    rm -rf /var/lib/apt/lists/*; \
-    # Verify installations
-    radclient -v || echo "radclient installed successfully"; \
-    gosu nobody true
-
-# Create non-root application user
-RUN useradd --create-home --shell /bin/bash appuser
-
-# Copy dotmac-shared first (dependency)
-COPY --chown=appuser:appuser dotmac-shared /dotmac-shared
-
-# Copy dependency files
-COPY --chown=appuser:appuser dotmac-isp/pyproject.toml dotmac-isp/poetry.lock ./
-
-# Install Poetry and dependencies
-RUN pip install --no-cache-dir "poetry==1.8.3" && \
-    poetry config virtualenvs.create false && \
-    poetry install --only=main --no-root --no-interaction --no-ansi
-
-# Copy application code
-COPY --chown=appuser:appuser dotmac-isp/src ./src
-# Alembic is optional for ISP (migrations run on platform)
-# COPY --chown=appuser:appuser dotmac-isp/alembic.ini ./
-# COPY --chown=appuser:appuser dotmac-isp/alembic ./alembic
-
-# Ensure application files are owned by non-root user
-RUN chown -R appuser:appuser /app
-
-# Create storage directory with correct permissions (as template for volumes)
-RUN mkdir -p /var/lib/dotmac && chown -R appuser:appuser /var/lib/dotmac
-
-# Copy entrypoint script
-COPY dotmac-isp/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# Set Python path
-ENV PYTHONPATH=/app/src:/dotmac-shared/src:$PYTHONPATH
-
-# Use entrypoint (runs as root to fix permissions, then switches to appuser)
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-
-# Default command (can be overridden in docker-compose)
-CMD ["uvicorn", "dotmac.isp.isp_main:app", "--host", "0.0.0.0", "--port", "8000"]
+USER appuser
+EXPOSE 8000
+CMD ["uvicorn", "dotmac_isp.main:app", "--host", "0.0.0.0", "--port", "8000"]
