@@ -1,0 +1,7 @@
+**
+!pyproject.toml
+!poetry.lock
+!README.md
+!src/
+!src/dotmac_isp/
+!src/dotmac_isp/**

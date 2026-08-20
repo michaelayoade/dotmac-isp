@@ -1,1 +1,1 @@
-Billing extensions for ISP - contains ISP-specific billing modules that depend on ISP models
+"""Billing extensions for ISP-specific modules that depend on ISP models."""

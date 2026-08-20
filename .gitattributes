@@ -1,0 +1,2 @@
+# Do not resurface the removed runtime environment material in patches or PRs.
+frontend/apps/isp-ops-app/.env.local -diff

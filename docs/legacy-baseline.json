@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "regions": {
+    "legacy_backend": {
+      "count": 748,
+      "digest": "a79165880fd310a084265ca24d67468251d85bb75677def524795afff3f6c17d"
+    },
+    "legacy_frontend": {
+      "count": 859,
+      "digest": "28e0032c5309adb803ce7645783bf66cd4abbd3c2061c886893ad2315c9698f0"
+    },
+    "legacy_tests": {
+      "count": 653,
+      "digest": "2e422cad08b3321f2045f387de87684ea0127ad144e45b958a4ca4d818db5776"
+    },
+    "tracked_node_modules": {
+      "count": 128942,
+      "digest": "0fc1c2078b32a79a051958589887d40df317d0052c4c80051fc57141df3e12c9"
+    }
+  },
+  "tracked_runtime_env_files": []
+}

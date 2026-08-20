@@ -1,0 +1,190 @@
+{
+  "schema_version": 9,
+  "profile_id": "dotmac-isp-engineering-standards",
+  "repository": {
+    "canonical_url": "https://github.com/michaelayoade/dotmac-isp",
+    "default_branch": "main"
+  },
+  "governance_model": {
+    "kind": "pinned",
+    "canonical_url": "https://github.com/michaelayoade/dotmac_governance",
+    "revision": "a19259b10568d29dc0a9617347498fea7f1e7a97",
+    "source": "docs/adr/0006-cross-repository-engineering-conformance.md",
+    "status": "accepted"
+  },
+  "enforcement_mode": "required",
+  "authorities": [
+    {
+      "authority_id": "isp-product-composition",
+      "subject": "Which exact released Starter surfaces, domain modules, persistence planes, topology and presentation assets constitute the Dotmac ISP target runtime.",
+      "protected_resources": ["isp-product-runtime-composition"],
+      "owner_component": "dotmac-isp-assembly",
+      "owner_implementation": "src/dotmac_isp/assembly.py",
+      "decision_interface": "dotmac_isp.assembly.build_spec",
+      "canonical_writer_paths": ["src/dotmac_isp/assembly.py"],
+      "adapter_paths": ["src/dotmac_isp/main.py"],
+      "drift_test_paths": ["tests/thin/test_assembly_contract.py"]
+    },
+    {
+      "authority_id": "isp-legacy-containment",
+      "subject": "Which inherited backend, test, frontend, generated dependency and runtime-environment paths remain frozen while the thin assembly replaces them, with any change requiring an explicit two-directional baseline update.",
+      "protected_resources": ["isp-legacy-transition-boundary"],
+      "owner_component": "dotmac-isp-legacy-baseline",
+      "owner_implementation": "scripts/check_legacy_baseline.py",
+      "decision_interface": "scripts.check_legacy_baseline.violations",
+      "canonical_writer_paths": [
+        "scripts/check_legacy_baseline.py",
+        "docs/legacy-baseline.json"
+      ],
+      "adapter_paths": ["AGENTS.md", "docs/ARCHITECTURE.md"],
+      "drift_test_paths": ["tests/thin/test_legacy_boundary.py"]
+    }
+  ],
+  "typed_contract_surfaces": [
+    {
+      "surface_id": "isp-assembly-contract",
+      "paths": ["src/dotmac_isp/assembly.py", "src/dotmac_isp/config.py"],
+      "require_public_annotations": true,
+      "forbid_any": true,
+      "require_immutable_records": true
+    }
+  ],
+  "module_declared_vocabularies": [],
+  "testing_kit_boundary": {
+    "test_roots": ["tests"],
+    "kit_source_roots": [],
+    "conformance_probes": []
+  },
+  "external_connector_surface": {
+    "baselines": {
+      "outbound_transport": 6,
+      "webhook_surface": 2,
+      "provider_credential": 2,
+      "connector_task": 1,
+      "sync_checkpoint": 0,
+      "delivery_retry": 2
+    },
+    "conserved_exclusions": [
+      {
+        "path": "tests/crm/test_crm_router.py",
+        "symbol": "TestCRMTenantIsolation",
+        "category": "outbound_transport",
+        "fingerprint": "ea1fcb6a77ed4c4fa84e27c3635a1336550a56c7d6d010fc1ac5bd0efd57fe84"
+      },
+      {
+        "path": "tests/crm/test_crm_router.py",
+        "symbol": "TestLeadEndpoints",
+        "category": "outbound_transport",
+        "fingerprint": "ea1fcb6a77ed4c4fa84e27c3635a1336550a56c7d6d010fc1ac5bd0efd57fe84"
+      },
+      {
+        "path": "tests/crm/test_crm_router.py",
+        "symbol": "TestQuoteEndpoints",
+        "category": "outbound_transport",
+        "fingerprint": "ea1fcb6a77ed4c4fa84e27c3635a1336550a56c7d6d010fc1ac5bd0efd57fe84"
+      },
+      {
+        "path": "tests/crm/test_crm_router.py",
+        "symbol": "TestSiteSurveyEndpoints",
+        "category": "outbound_transport",
+        "fingerprint": "ea1fcb6a77ed4c4fa84e27c3635a1336550a56c7d6d010fc1ac5bd0efd57fe84"
+      },
+      {
+        "path": "tests/fiber/test_fiber_rest_api.py",
+        "symbol": "TestAnalyticsAPI",
+        "category": "outbound_transport",
+        "fingerprint": "ed8da9c5e24d39fbbda58d474ab750f332419a7bfd4dbed7d8a1d2bb70f70f85"
+      },
+      {
+        "path": "tests/fiber/test_fiber_rest_api.py",
+        "symbol": "TestDistributionPointAPI",
+        "category": "outbound_transport",
+        "fingerprint": "ed8da9c5e24d39fbbda58d474ab750f332419a7bfd4dbed7d8a1d2bb70f70f85"
+      },
+      {
+        "path": "tests/fiber/test_fiber_rest_api.py",
+        "symbol": "TestFiberCableAPI",
+        "category": "outbound_transport",
+        "fingerprint": "ed8da9c5e24d39fbbda58d474ab750f332419a7bfd4dbed7d8a1d2bb70f70f85"
+      },
+      {
+        "path": "tests/fiber/test_fiber_rest_api.py",
+        "symbol": "TestHealthMetricsAPI",
+        "category": "outbound_transport",
+        "fingerprint": "ed8da9c5e24d39fbbda58d474ab750f332419a7bfd4dbed7d8a1d2bb70f70f85"
+      },
+      {
+        "path": "tests/fiber/test_fiber_rest_api.py",
+        "symbol": "TestServiceAreaAPI",
+        "category": "outbound_transport",
+        "fingerprint": "ed8da9c5e24d39fbbda58d474ab750f332419a7bfd4dbed7d8a1d2bb70f70f85"
+      },
+      {
+        "path": "tests/fiber/test_fiber_rest_api.py",
+        "symbol": "TestValidation",
+        "category": "outbound_transport",
+        "fingerprint": "ed8da9c5e24d39fbbda58d474ab750f332419a7bfd4dbed7d8a1d2bb70f70f85"
+      },
+      {
+        "path": "tests/genieacs/test_genieacs_client.py",
+        "symbol": "<module>",
+        "category": "outbound_transport",
+        "fingerprint": "6ff0457e8c641283992e40b75715450804c332180277effa2c729e0a29d8c1e7"
+      },
+      {
+        "path": "tests/genieacs/test_genieacs_integration.py",
+        "symbol": "TestGenieACSCircuitBreaker",
+        "category": "delivery_retry",
+        "fingerprint": "b696bb306068538fe16c3f5f5a908b4c529952a933bbfcc27c42e390b356eaba"
+      },
+      {
+        "path": "tests/genieacs/test_genieacs_integration.py",
+        "symbol": "mock_genieacs_server",
+        "category": "outbound_transport",
+        "fingerprint": "b696bb306068538fe16c3f5f5a908b4c529952a933bbfcc27c42e390b356eaba"
+      },
+      {
+        "path": "tests/genieacs/test_genieacs_performance.py",
+        "symbol": "performance_genieacs_server",
+        "category": "outbound_transport",
+        "fingerprint": "9d15e2871ed0f8afb7a84a337e4f9e34d987a109a24a9ce77a518e23568f31fe"
+      },
+      {
+        "path": "tests/jobs/conftest.py",
+        "symbol": "<module>",
+        "category": "outbound_transport",
+        "fingerprint": "b76bfdaf63ea33b21794439bf1138f226ee1930e866e28cbb95d7de1cc3b006d"
+      },
+      {
+        "path": "tests/jobs/test_jobs_router.py",
+        "symbol": "TestJobEndpoints",
+        "category": "outbound_transport",
+        "fingerprint": "17d0549103113abb70712d9ec5f30ac73c5535d259deb4866dba15447f8e1799"
+      },
+      {
+        "path": "tests/jobs/test_jobs_router.py",
+        "symbol": "TestJobTenantIsolation",
+        "category": "outbound_transport",
+        "fingerprint": "17d0549103113abb70712d9ec5f30ac73c5535d259deb4866dba15447f8e1799"
+      },
+      {
+        "path": "tests/network/test_network_router.py",
+        "symbol": "test_delete_profile",
+        "category": "outbound_transport",
+        "fingerprint": "eadaef67d56957fb8664620fb9ccd7bb41c48066b4748e691942b1ca03c8fc65"
+      },
+      {
+        "path": "tests/network/test_network_router.py",
+        "symbol": "test_upsert_and_get_profile",
+        "category": "outbound_transport",
+        "fingerprint": "eadaef67d56957fb8664620fb9ccd7bb41c48066b4748e691942b1ca03c8fc65"
+      },
+      {
+        "path": "tests/orchestration/conftest.py",
+        "symbol": "<module>",
+        "category": "delivery_retry",
+        "fingerprint": "f1cb8d452a51884e31e42d3b8e44914e7c4c5b66ce0c18da474f13a14f4b1f2b"
+      }
+    ]
+  }
+}

@@ -662,7 +662,7 @@ async def create_subscription_renewal_quote(
     from decimal import Decimal
     from uuid import UUID
 
-        from dotmac.isp.crm.service import QuoteService
+    from dotmac.isp.crm.service import QuoteService
 
     # First get subscription details
     subscription_service = SubscriptionService(db_session)
