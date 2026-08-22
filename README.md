@@ -1,3 +1,29 @@
+> # ⛔ FROZEN — 2026-08-22
+>
+> **This repository holds no programme control and receives no further
+> construction.**
+>
+> Its premise was that legacy `dotmac_sub` would be replaced by an independent
+> assembly running on its own host and database. That is no longer the accepted
+> direction. **Dotmac Sub is not being retired**: it remains the ISP product,
+> runtime, API identity, hostname and customer-facing application, and becomes
+> the thin assembly *in place* — pinning kernel, UI and released domain modules,
+> with each domain switching authority internally from legacy code to its
+> module. Customers and mobile clients keep the same endpoints.
+>
+> The operative phrase is **"retire legacy Sub implementations, not Dotmac
+> Sub."**
+>
+> Consequently there is no separate ISP production host, no second production
+> database, no mobile API-base repoint, no cross-database sealing protocol and
+> no external synchronisation layer. `dec-isp-002`, which asked which host would
+> run this assembly, is **superseded rather than answered**.
+>
+> This repository is kept, not deleted: it is the record of a direction that was
+> accepted and then corrected. Read the conversion amendment in Governance
+> ADR-0012 (`docs/adr/0012-dotmac-isp-replacement-programme.md`, § "Conversion
+> amendment — 2026-08-22") before doing anything here.
+
 # Dotmac ISP
 
 The candidate thin product assembly that will replace legacy `dotmac_sub` one
